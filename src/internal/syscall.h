@@ -414,7 +414,11 @@ hidden long __emulate_wait4(int, int *, int, void *, int);
 #define sys_wait4(a,b,c,d) __syscall_ret(__sys_wait4(a,b,c,d))
 #define sys_wait4_cp(a,b,c,d) __syscall_ret(__sys_wait4_cp(a,b,c,d))
 
+#if defined(__cplusplus)
+hidden void __procfdname(char *, unsigned);
+#else
 hidden void __procfdname(char __buf[static 15+3*sizeof(int)], unsigned);
+#endif
 
 hidden void *__vdsosym(const char *, const char *);
 
