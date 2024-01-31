@@ -1,3 +1,14 @@
+#define __musl_glibc_redirect_to_isoc99(s)
+#include "features.h"
+#if GMUSL_gcompat__glibc_cstdio
+    // This file is only used to support sscanf and vsscanf.
+    #define vfscanf __musl_glibc_internal_vfscanf
+    #define __toread __musl_glibc_internal_toread
+    #define __floatscan __musl_glibc_internal_floatscan
+    #define __intscan __musl_glibc_internal_intscan
+    #define __uflow __musl_glibc_internal_uflow
+#endif
+
 #include <stdlib.h>
 #include <stdarg.h>
 #include <ctype.h>
@@ -11,6 +22,13 @@
 #include "shgetc.h"
 #include "intscan.h"
 #include "floatscan.h"
+
+#if GMUSL_gcompat__glibc_cstdio
+    #undef FLOCK
+    #undef FUNLOCK
+    #define FLOCK(f)
+    #define FUNLOCK(f)
+#endif
 
 #define SIZE_hh -2
 #define SIZE_h  -1
@@ -336,4 +354,12 @@ match_fail:
 	return matches;
 }
 
+#if GMUSL_gcompat__glibc_cstdio
+#include "../internal/shgetc.c"
+#include "../internal/floatscan.c"
+#include "../internal/intscan.c"
+#include "__toread.c"
+#include "__uflow.c"
+#else
 weak_alias(vfscanf,__isoc99_vfscanf);
+#endif

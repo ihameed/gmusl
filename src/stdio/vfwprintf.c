@@ -1,3 +1,9 @@
+#include "features.h"
+
+#include "../gmusl/src/glibc-compat/src/glibc-compat-c-std-io.h"
+
+#if !GMUSL_gcompat__glibc_cstdio // {
+
 #include "stdio_impl.h"
 #include <errno.h>
 #include <ctype.h>
@@ -8,6 +14,55 @@
 #include <stdlib.h>
 #include <wchar.h>
 #include <inttypes.h>
+
+void
+__fwritexw_out(FILE *restrict f, wchar_t const * restrict s, size_t l) {
+	while (l-- && !ferror(f)) fputwc(*s++, f);
+}
+
+#else // } {
+
+	#define __NEED_uintmax_t
+	#define __NEED_size_t
+	#define __NEED_intmax_t
+	#define __NEED_ptrdiff_t
+	#define __NEED_uintptr_t
+	#define __NEED_FILE
+	#define __NEED_uint32_t
+	#define __NEED_uint64_t
+	#define __NEED_wchar_t
+	#define __NEED_wint_t
+	#include <bits/alltypes.h>
+	#include "../include/stdarg.h" // va_list, va_arg, va_start
+	#include <limits.h>
+	#include <math.h>
+	#include <float.h>
+	#include <errno.h>
+	#include <ctype.h> // isdigit
+	#include <stdint.h> // INTMAX_MAX
+	#include <string.h> // strerror, memset
+
+	wint_t fputwc_unlocked(wchar_t, FILE *);
+	void flockfile(FILE *f);
+	void funlockfile(FILE *f);
+	int fwide(FILE *f, int mode);
+	int iswdigit(wint_t wc);
+	wint_t btowc(int c);
+	size_t wcsnlen(const wchar_t *s, size_t n);
+	int mbtowc(wchar_t *restrict wc, const char *restrict src, size_t n);
+	int snprintf(char *restrict s, size_t n, const char *restrict fmt, ...);
+
+	#define ferror(f) __unlocked_ferror(f)
+
+	void
+	__fwritexw_out(FILE *restrict f, wchar_t const * restrict s, size_t l) {
+		while (l-- && !ferror(f)) fputwc_unlocked(*s++, f);
+	}
+
+#endif // }
+
+int
+__fprintf_internal(musl_glibc_cstdio_out_t out, FILE *restrict f, const char *restrict fmt, ...);
 
 /* Convenient bit representation for modifier flags, which all fall
  * within 31 codepoints of the space character. */
@@ -123,15 +178,10 @@ static void pop_arg(union arg *arg, int type, va_list *ap)
 	}
 }
 
-static void out(FILE *f, const wchar_t *s, size_t l)
-{
-	while (l-- && !ferror(f)) fputwc(*s++, f);
-}
-
-static void pad(FILE *f, int n, int fl)
+static void pad(FILE *f, int n, int fl, musl_glibc_cstdio_out_t outc)
 {
 	if ((fl & LEFT_ADJ) || !n || ferror(f)) return;
-	fprintf(f, "%*s", n, "");
+	__fprintf_internal(outc, f, "%*s", n, "");
 }
 
 static int getint(wchar_t **s) {
@@ -149,7 +199,11 @@ static const char sizeprefix['y'-'a'] = {
 ['p'-'a']='j'
 };
 
-static int wprintf_core(FILE *f, const wchar_t *fmt, va_list *ap, union arg *nl_arg, int *nl_type)
+#define pad(f, n, fl) pad(f, n, fl, outc)
+
+static int wprintf_core(FILE *f, const wchar_t *fmt, va_list *ap, union arg *nl_arg, int *nl_type,
+	musl_glibc_cstdio_outw_t out,
+	musl_glibc_cstdio_out_t outc)
 {
 	wchar_t *a, *z, *s=(wchar_t *)fmt;
 	unsigned l10n=0, fl;
@@ -319,10 +373,10 @@ static int wprintf_core(FILE *f, const wchar_t *fmt, va_list *ap, union arg *nl_
 
 		switch (t|32) {
 		case 'a': case 'e': case 'f': case 'g':
-			l = fprintf(f, charfmt, w, p, arg.f);
+			l = __fprintf_internal(outc, f, charfmt, w, p, arg.f);
 			break;
 		case 'd': case 'i': case 'o': case 'u': case 'x': case 'p':
-			l = fprintf(f, charfmt, w, p, arg.i);
+			l = __fprintf_internal(outc, f, charfmt, w, p, arg.i);
 			break;
 		}
 	}
@@ -344,7 +398,22 @@ overflow:
 	return -1;
 }
 
-int vfwprintf(FILE *restrict f, const wchar_t *restrict fmt, va_list ap)
+#if GMUSL_gcompat__glibc_cstdio
+	#define flags _flags
+	#define F_ERR _IO_ERR_SEEN
+	#define FLOCK(f) do { if (out == __fwritexw_out) { flockfile(f); } } while (0)
+	#define FUNLOCK(f) do { if (out == __fwritexw_out) { funlockfile(f); } } while (0)
+	#define fwide(f, mode) do { if (out == __fwritexw_out) fwide(f, mode); } while (0)
+#endif
+
+void
+musl_glibc_fwritex_out(FILE *restrict f, const char * restrict s, size_t l);
+
+int
+__vfwprintf_internal(FILE * restrict f, wchar_t const * restrict fmt,
+	musl_glibc_cstdio_outw_t out,
+	musl_glibc_cstdio_out_t outc,
+	va_list ap)
 {
 	va_list ap2;
 	int nl_type[NL_ARGMAX+1] = {0};
@@ -354,7 +423,7 @@ int vfwprintf(FILE *restrict f, const wchar_t *restrict fmt, va_list ap)
 
 	/* the copy allows passing va_list* even if va_list is an array */
 	va_copy(ap2, ap);
-	if (wprintf_core(0, fmt, &ap2, nl_arg, nl_type) < 0) {
+	if (wprintf_core(0, fmt, &ap2, nl_arg, nl_type, out, outc) < 0) {
 		va_end(ap2);
 		return -1;
 	}
@@ -363,10 +432,15 @@ int vfwprintf(FILE *restrict f, const wchar_t *restrict fmt, va_list ap)
 	fwide(f, 1);
 	olderr = f->flags & F_ERR;
 	f->flags &= ~F_ERR;
-	ret = wprintf_core(f, fmt, &ap2, nl_arg, nl_type);
+	ret = wprintf_core(f, fmt, &ap2, nl_arg, nl_type, out, outc);
 	if (ferror(f)) ret = -1;
 	f->flags |= olderr;
 	FUNLOCK(f);
 	va_end(ap2);
 	return ret;
+}
+
+int vfwprintf(FILE *restrict f, const wchar_t *restrict fmt, va_list ap)
+{
+	return __vfwprintf_internal(f, fmt, &__fwritexw_out, &musl_glibc_fwritex_out, ap);
 }
