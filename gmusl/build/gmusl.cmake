@@ -103,7 +103,6 @@ function(musl_cmake__generate_musl_file_lists name-prefix arch)
         ## unistd
         "setegid.c" "setreuid.c" "setresgid.c" "setresuid.c" "setuid.c"
         "setxid.c" "setregid.c" "setgid.c" "seteuid.c" # musl-synccall
-        "faccessat.c" # __clone
 
         ## internal
         "libc.c" # musl global state won't be present at all
@@ -182,10 +181,10 @@ function(musl_cmake__generate_musl_file_lists name-prefix arch)
     set("files-no-libc-internals-locale") # c and posix locales are gross
     set("files-no-libc-internals-process") # defer to glibc; too much work + need to understand possible races. also fork is a bad idea and so is atfork
     set("files-no-libc-internals-malloc") # defer to glibc; i suspect that it is common practice on elf systems to pass memory allocated with a crt malloc across dll boundaries, with the expectation that another module will use that same crt's free function
-    set("files-no-libc-internals-thread") # use glibc's pthread; this is necessary to cooperate with other dlls that expect glibc's thread control block
     set("files-no-libc-internals-temp") # __randname depends on a 'tid' tcb field. i don't use this stuff so defer to glibc instead
     set("files-no-libc-internals-time") # FIXME: enable the stuff that is actually useful; figure out a best-effort 64-bit-time-on-old-32-bit-glibc scheme
     #set("files-no-libc-internals-setjmp") # TODO: should glibc's setjmp headers and functions be used? i'm not aware of any software i care about that passes a jmp_buf across dll boundaries
+    set("files-no-libc-internals-thread") # use glibc's pthread; this is necessary to cooperate with other dlls that expect glibc's thread control block
 
     set(all-groups
         ${_musl_cmake__src-groups}
