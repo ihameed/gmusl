@@ -6,6 +6,8 @@
 #include "libc.h"
 #include "pthread_impl.h"
 
+#if GMUSL_gcompat__musl_global_state // (
+
 #define LOCALE_NAME_MAX 23
 
 struct __locale_map {
@@ -43,5 +45,11 @@ hidden char *__gettextdomain(void);
 
 #undef MB_CUR_MAX
 #define MB_CUR_MAX (CURRENT_UTF8 ? 4 : 1)
+
+#else // ) (
+
+#include "../../gmusl/src/glibc-compat/src/glibc-compat-locale-internal.h"
+
+#endif // )
 
 #endif

@@ -13,6 +13,8 @@
 
 #include "pthread_arch.h"
 
+#if GMUSL_gcompat__musl_global_state // (
+
 #define pthread __pthread
 
 struct pthread {
@@ -201,5 +203,22 @@ extern hidden unsigned __default_guardsize;
 #define DEFAULT_GUARD_MAX (1<<20)
 
 #define __ATTRP_C11_THREAD ((void*)(uintptr_t)-1)
+
+#else // ) (
+
+// It would be possible to use musl's __clone, but this runs the risk of the
+// user-mode code that runs after the user function returns (i.e. the code that
+// sends the user function's return value to SYS_exit) to be unmapped while
+// the child task is still running, if CLONE_VM is used and the parent task
+// joins on the child task by using a mechanism other than CLONE_CHILD_CLEARTID
+// (TODO: verify that CLONE_CHILD_CLEARTID only causes the child_tid to be
+// futex-awoken after user-mode code can no longer run in that task). This
+// isn't problematic for faccessat, which doesn't use CLONE_VM in its fallback
+// (maybe it should? but faccessat is goofy), but might be problematic for
+// posix_spawn if I ever bother to use musl's implementation of it instead of
+// deferring to glibc.
+int __clone(int (*)(void *), void *, int, void *, ...); // TODO: this defers to glibc's __clone
+
+#endif // )
 
 #endif
