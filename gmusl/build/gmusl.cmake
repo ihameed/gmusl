@@ -84,7 +84,17 @@ function(musl_cmake__generate_musl_file_lists name-prefix arch)
         "${root}/gmusl/src/glibc-compat/src/*.h")
 
     file(GLOB files-stdio "${root}/src/stdio/*.c" "${root}/src/stdio/*.h")
-    set(files-no-libc-internals-stdio) # No part of stdio is safe to use; it currently depends on musl-specific assumptions.
+    file(GLOB files-no-libc-internals-stdio
+        "${root}/src/stdio/*printf*.c")
+    list(APPEND files-no-libc-internals-stdio
+        "${root}/gmusl/src/glibc-compat/src/glibc-compat-c-std-io.cpp"
+        "${root}/gmusl/src/glibc-compat/src/glibc-compat-c-std-io.h"
+        "${root}/src/stdio/sscanf.c"
+        "${root}/src/stdio/vsscanf.c"
+        "${root}/src/stdio/vfscanf.c"
+        "${root}/src/internal/stdio_impl.h"
+        "${root}/src/stdio/open_memstream.c"
+        "${root}/src/stdio/open_wmemstream.c")
 
     set(depends-on-libc-internals
         ## env

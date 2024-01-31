@@ -13,6 +13,8 @@
     #define __GMUSL_gcompat__use_glibc_compat 0
     #define GMUSL_gcompat__musl_global_state 1
     #define GMUSL_gcompat__posix_cancellation_points 1
+    #define GMUSL_gcompat__glibc_cstdio 0
+    #define GMUSL__cstdio_alias(old, new) weak_alias(old, new)
 #else
     #define __GMUSL_gcompat__use_glibc_compat 1
     #define GMUSL_gcompat__musl_global_state 0
@@ -21,6 +23,8 @@
     #else
         #define GMUSL_gcompat__posix_cancellation_points 0
     #endif
+    #define GMUSL_gcompat__glibc_cstdio 1
+    #define GMUSL__cstdio_alias(old, new) extern __typeof(old) new __attribute__((__alias__(#old)))
 #endif
 
 #include "../../include/features.h"
