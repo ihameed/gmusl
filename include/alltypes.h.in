@@ -1,3 +1,8 @@
+#include <__gmusl-cfg.h>
+
+#if !defined(__GMUSL_gcompat__use_glibc_compat)
+#error "__GMUSL_gcompat_use_glibc_compat is undefined; an appropriate features.h should be included before this file."
+#endif
 #define __LITTLE_ENDIAN 1234
 #define __BIG_ENDIAN 4321
 #define __USE_TIME_BITS64 1
@@ -57,11 +62,16 @@ TYPEDEF struct __pthread * pthread_t;
 #endif
 TYPEDEF int pthread_once_t;
 TYPEDEF unsigned pthread_key_t;
+
+#if __GMUSL_gcompat__use_glibc_compat /* { */
+TYPEDEF int volatile pthread_spinlock_t;
+#else /* } { */
 TYPEDEF int pthread_spinlock_t;
 TYPEDEF struct { unsigned __attr; } pthread_mutexattr_t;
 TYPEDEF struct { unsigned __attr; } pthread_condattr_t;
 TYPEDEF struct { unsigned __attr; } pthread_barrierattr_t;
 TYPEDEF struct { unsigned __attr[2]; } pthread_rwlockattr_t;
+#endif /* } */
 
 STRUCT _IO_FILE { char __x; };
 TYPEDEF struct _IO_FILE FILE;
@@ -82,6 +92,7 @@ STRUCT winsize { unsigned short ws_row, ws_col, ws_xpixel, ws_ypixel; };
 TYPEDEF unsigned socklen_t;
 TYPEDEF unsigned short sa_family_t;
 
+#if !__GMUSL_gcompat__use_glibc_compat /* { */
 TYPEDEF struct { union { int __i[sizeof(long)==8?14:9]; volatile int __vi[sizeof(long)==8?14:9]; unsigned long __s[sizeof(long)==8?7:9]; } __u; } pthread_attr_t;
 TYPEDEF struct { union { int __i[sizeof(long)==8?10:6]; volatile int __vi[sizeof(long)==8?10:6]; volatile void *volatile __p[sizeof(long)==8?5:6]; } __u; } pthread_mutex_t;
 TYPEDEF struct { union { int __i[sizeof(long)==8?10:6]; volatile int __vi[sizeof(long)==8?10:6]; volatile void *volatile __p[sizeof(long)==8?5:6]; } __u; } mtx_t;
@@ -89,6 +100,7 @@ TYPEDEF struct { union { int __i[12]; volatile int __vi[12]; void *__p[12*sizeof
 TYPEDEF struct { union { int __i[12]; volatile int __vi[12]; void *__p[12*sizeof(int)/sizeof(void*)]; } __u; } cnd_t;
 TYPEDEF struct { union { int __i[sizeof(long)==8?14:8]; volatile int __vi[sizeof(long)==8?14:8]; void *__p[sizeof(long)==8?7:8]; } __u; } pthread_rwlock_t;
 TYPEDEF struct { union { int __i[sizeof(long)==8?8:5]; volatile int __vi[sizeof(long)==8?8:5]; void *__p[sizeof(long)==8?4:5]; } __u; } pthread_barrier_t;
+#endif /* } !__GMUSL_gcompat__use_glibc_compat */
 
 #undef _Addr
 #undef _Int64
