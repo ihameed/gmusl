@@ -31,7 +31,7 @@ int setrlimit(int resource, const struct rlimit *rlim)
 		rlim = &tmp;
 	}
 	int ret = __syscall(SYS_prlimit64, 0, resource, rlim, 0);
-#ifdef SYS_setrlimit
+#if defined(SYS_setrlimit) && GMUSL_gcompat__musl_global_state
 	if (ret != -ENOSYS) return __syscall_ret(ret);
 
 	struct ctx c = {
