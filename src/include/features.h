@@ -12,9 +12,15 @@
 #if !defined(GMUSL_use_glibc_compat)
     #define __GMUSL_gcompat__use_glibc_compat 0
     #define GMUSL_gcompat__musl_global_state 1
+    #define GMUSL_gcompat__posix_cancellation_points 1
 #else
     #define __GMUSL_gcompat__use_glibc_compat 1
     #define GMUSL_gcompat__musl_global_state 0
+    #if !defined(GMUSL_no_posix_cancellation_points)
+        #define GMUSL_gcompat__posix_cancellation_points 1
+    #else
+        #define GMUSL_gcompat__posix_cancellation_points 0
+    #endif
 #endif
 
 #include "../../include/features.h"

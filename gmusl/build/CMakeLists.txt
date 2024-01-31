@@ -73,7 +73,8 @@ function(_def_lib_musl_partial_static)
         )
     target_compile_definitions("${target}" PRIVATE
         ${musl_cmake__compile-definitions}
-        "GMUSL_use_glibc_compat")
+        "GMUSL_use_glibc_compat"
+        "GMUSL_no_posix_cancellation_points")
     target_compile_options("${target}" PRIVATE
         ${musl_cmake__compile-options}
         )
