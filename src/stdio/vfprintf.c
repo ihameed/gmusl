@@ -1,3 +1,9 @@
+#include "features.h"
+
+#include "../gmusl/src/glibc-compat/src/glibc-compat-c-std-io.h"
+
+#if !GMUSL_gcompat__glibc_cstdio // {
+
 #include "stdio_impl.h"
 #include <errno.h>
 #include <ctype.h>
@@ -10,6 +16,46 @@
 #include <inttypes.h>
 #include <math.h>
 #include <float.h>
+
+static void
+musl_glibc_fwritex_out(FILE * restrict f, const char * restrict s, size_t l) {
+    if (!ferror(f)) __fwritex((void *)s, l, f);
+}
+
+#else // } {
+
+	#define __NEED_uintmax_t
+	#define __NEED_size_t
+	#define __NEED_intmax_t
+	#define __NEED_ptrdiff_t
+	#define __NEED_uintptr_t
+	#define __NEED_FILE
+	#define __NEED_uint32_t
+	#define __NEED_uint64_t
+	#define __NEED_wchar_t
+	#include <bits/alltypes.h>
+	#include "../include/stdarg.h" // va_list, va_arg, va_start
+	#include <limits.h>
+	#include <math.h>
+	#include <float.h>
+	#include <errno.h>
+	#include <ctype.h> // isdigit
+	#include <stdint.h> // INTMAX_MAX
+	#include <string.h> // strerror, memset
+
+	size_t fwrite_unlocked(const void *, size_t, size_t, FILE *);
+	int wctomb(char *s, wchar_t wc);
+	void flockfile(FILE *f);
+	void funlockfile(FILE *f);
+
+	#define ferror(f) __unlocked_ferror(f)
+
+	void
+	musl_glibc_fwritex_out(FILE *restrict f, const char * restrict s, size_t l) {
+		if (!ferror(f)) fwrite_unlocked(s, 1, l, f);
+	}
+
+#endif // }
 
 /* Some useful macros */
 
@@ -130,12 +176,7 @@ static void pop_arg(union arg *arg, int type, va_list *ap)
 	}
 }
 
-static void out(FILE *f, const char *s, size_t l)
-{
-	if (!ferror(f)) __fwritex((void *)s, l, f);
-}
-
-static void pad(FILE *f, char c, int w, int l, int fl)
+static void pad(FILE *f, char c, int w, int l, int fl, musl_glibc_cstdio_out_t out)
 {
 	char pad[256];
 	if (fl & (LEFT_ADJ | ZERO_PAD) || l >= w) return;
@@ -177,7 +218,9 @@ static char *fmt_u(uintmax_t x, char *s)
 typedef char compiler_defines_long_double_incorrectly[9-(int)sizeof(long double)];
 #endif
 
-static int fmt_fp(FILE *f, long double y, int w, int p, int fl, int t)
+#define pad(f, c, w, l, fl) pad(f, c, w, l, fl, out)
+
+static int fmt_fp(FILE *f, long double y, int w, int p, int fl, int t, musl_glibc_cstdio_out_t out)
 {
 	uint32_t big[(LDBL_MANT_DIG+28)/29 + 1          // mantissa expansion
 		+ (LDBL_MAX_EXP+LDBL_MANT_DIG+28+8)/9]; // exponent expansion
@@ -341,7 +384,7 @@ static int fmt_fp(FILE *f, long double y, int w, int p, int fl, int t)
 		if (z>d+1) z=d+1;
 	}
 	for (; z>a && !z[-1]; z--);
-	
+
 	if ((t|32)=='g') {
 		if (!p) p++;
 		if (p>e && e>=-4) {
@@ -427,7 +470,7 @@ static int getint(char **s) {
 	return i;
 }
 
-static int printf_core(FILE *f, const char *fmt, va_list *ap, union arg *nl_arg, int *nl_type)
+static int printf_core(FILE *f, const char *fmt, va_list *ap, union arg *nl_arg, int *nl_type, musl_glibc_cstdio_out_t out)
 {
 	char *a, *z, *s=(char *)fmt;
 	unsigned l10n=0, fl;
@@ -624,7 +667,7 @@ static int printf_core(FILE *f, const char *fmt, va_list *ap, union arg *nl_arg,
 		case 'e': case 'f': case 'g': case 'a':
 		case 'E': case 'F': case 'G': case 'A':
 			if (xp && p<0) goto overflow;
-			l = fmt_fp(f, arg.f, w, p, fl, t);
+			l = fmt_fp(f, arg.f, w, p, fl, t, out);
 			if (l<0) goto overflow;
 			continue;
 		}
@@ -661,18 +704,26 @@ overflow:
 	return -1;
 }
 
-int vfprintf(FILE *restrict f, const char *restrict fmt, va_list ap)
-{
+#if GMUSL_gcompat__glibc_cstdio
+	#define flags _flags
+	#define F_ERR _IO_ERR_SEEN
+	#define FLOCK(f) do { if (out == &musl_glibc_fwritex_out) { flockfile(f); } } while (0)
+	#define FUNLOCK(f) do { if (out == &musl_glibc_fwritex_out) { funlockfile(f); } } while (0)
+#endif
+
+int
+__vfprintf_internal(FILE * restrict f, char const * restrict fmt, musl_glibc_cstdio_out_t out, va_list ap) {
 	va_list ap2;
 	int nl_type[NL_ARGMAX+1] = {0};
 	union arg nl_arg[NL_ARGMAX+1];
 	unsigned char internal_buf[80], *saved_buf = 0;
 	int olderr;
 	int ret;
+	int is_used_for_snprintf = out == &musl_glibc_fwritex_out;
 
 	/* the copy allows passing va_list* even if va_list is an array */
 	va_copy(ap2, ap);
-	if (printf_core(0, fmt, &ap2, nl_arg, nl_type) < 0) {
+	if (printf_core(0, fmt, &ap2, nl_arg, nl_type, out) < 0) {
 		va_end(ap2);
 		return -1;
 	}
@@ -680,6 +731,7 @@ int vfprintf(FILE *restrict f, const char *restrict fmt, va_list ap)
 	FLOCK(f);
 	olderr = f->flags & F_ERR;
 	f->flags &= ~F_ERR;
+#if !GMUSL_gcompat__glibc_cstdio
 	if (!f->buf_size) {
 		saved_buf = f->buf;
 		f->buf = internal_buf;
@@ -687,7 +739,11 @@ int vfprintf(FILE *restrict f, const char *restrict fmt, va_list ap)
 		f->wpos = f->wbase = f->wend = 0;
 	}
 	if (!f->wend && __towrite(f)) ret = -1;
-	else ret = printf_core(f, fmt, &ap2, nl_arg, nl_type);
+#else
+	if (0) { }
+#endif
+	else ret = printf_core(f, fmt, &ap2, nl_arg, nl_type, out);
+#if !GMUSL_gcompat__glibc_cstdio
 	if (saved_buf) {
 		f->write(f, 0, 0);
 		if (!f->wpos) ret = -1;
@@ -695,9 +751,26 @@ int vfprintf(FILE *restrict f, const char *restrict fmt, va_list ap)
 		f->buf_size = 0;
 		f->wpos = f->wbase = f->wend = 0;
 	}
+#endif
 	if (ferror(f)) ret = -1;
 	f->flags |= olderr;
 	FUNLOCK(f);
 	va_end(ap2);
 	return ret;
+}
+
+int
+__fprintf_internal(musl_glibc_cstdio_out_t out, FILE *restrict f, const char *restrict fmt, ...)
+{
+	int ret;
+	va_list ap;
+	va_start(ap, fmt);
+	ret = __vfprintf_internal(f, fmt, out, ap);
+	va_end(ap);
+	return ret;
+}
+
+int vfprintf(FILE *restrict f, const char *restrict fmt, va_list ap)
+{
+	return __vfprintf_internal(f, fmt, &musl_glibc_fwritex_out, ap);
 }
