@@ -26,6 +26,9 @@ extern "C" {
 #define __NEED_sigset_t
 
 #include <bits/alltypes.h>
+#if __GMUSL_gcompat__use_glibc_compat
+#include <bits/pthreadtypes.h>
+#endif
 
 #define SIG_BLOCK     0
 #define SIG_UNBLOCK   1
