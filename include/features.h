@@ -1,6 +1,10 @@
 #ifndef _FEATURES_H
 #define _FEATURES_H
 
+#if !defined(__GMUSL_gcompat__use_glibc_compat)
+    #define __GMUSL_gcompat__use_glibc_compat 0
+#endif
+
 #if defined(_ALL_SOURCE) && !defined(_GNU_SOURCE)
 #define _GNU_SOURCE 1
 #endif
