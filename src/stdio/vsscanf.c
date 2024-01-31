@@ -1,3 +1,10 @@
+#define __musl_glibc_redirect_to_isoc99(s)
+#include "features.h"
+
+#if GMUSL_gcompat__glibc_cstdio
+    #define vfscanf __musl_glibc_internal_vfscanf
+#endif
+#define __DEFINED_struct__IO_FILE
 #include "stdio_impl.h"
 #include <string.h>
 
@@ -24,4 +31,4 @@ int vsscanf(const char *restrict s, const char *restrict fmt, va_list ap)
 	return vfscanf(&f, fmt, ap);
 }
 
-weak_alias(vsscanf,__isoc99_vsscanf);
+GMUSL__cstdio_alias(vsscanf,__isoc99_vsscanf);
