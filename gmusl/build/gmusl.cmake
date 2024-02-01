@@ -142,7 +142,6 @@ function(musl_cmake__generate_musl_file_lists name-prefix arch)
         "res_send.c" # glibc-namelookup
         "res_state.c" # glibc-namelookup
         "resolvconf.c" # musl-file, glibc-namelookup
-        "vdso.c" # musl-auxv
 
         ## signal
         "psignal.c" # musl-file
@@ -225,27 +224,6 @@ endfunction()
 # use its own prng with state explicitly passed around as a parameter, and the
 # prng functions exist in very very old versions of glibc, so backwards and
 # forwards compatibility shouldn't be an issue.
-#
-## musl-auxv
-#
-# vdso.c requires access to the elf auxiliary vector, which cannot be reliably
-# or easily accessed outside of the main executable's entry point code.  vdso.c
-# is only used in musl to support sched_getcpu and clock_gettime; both of these
-# have had reasonable-ish glibc implementations for over a decade. the most
-# robust workaround i can think of right now is:
-#
-# 1. use dlopen(RTLD_DEFAULT, "getauxval") to use glibc's reference/copy of the
-#    auxiliary vector if glibc-getauxval is available (and note that glibc <
-#    2.19 doesn't set errno to ENOENT if an entry cannot be found), and if that
-#    doesn't work, then
-#
-# 2. open /proc/self/auxv and copy that to a large-enough fixed size storage
-#    blob. the PTRACE_MODE_READ_FSCREDS check trivially passes for threads in
-#    the same thread group, but proc might not be mounted and some rando linux
-#    setups (like android) will restrict access to /proc/self, or
-#
-# 3. scan to the end of `environ` to find the auxiliary vector. this will fall
-#    apart completely if setenv has ever been called.
 #
 ## musl-synccall
 #
