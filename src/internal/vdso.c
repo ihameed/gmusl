@@ -3,7 +3,9 @@
 #include <limits.h>
 #include <stdint.h>
 #include <string.h>
+#if GMUSL_gcompat__musl_global_state
 #include "libc.h"
+#endif
 #include "syscall.h"
 
 #ifdef VDSO_USEFUL
@@ -20,6 +22,10 @@ typedef Elf64_Phdr Phdr;
 typedef Elf64_Sym Sym;
 typedef Elf64_Verdef Verdef;
 typedef Elf64_Verdaux Verdaux;
+#endif
+
+#if !GMUSL_gcompat__musl_global_state
+#include "../include/sys/auxv.h" // __getauxval
 #endif
 
 static int checkver(Verdef *def, int vsym, const char *vername, char *strings)
@@ -43,10 +49,19 @@ static int checkver(Verdef *def, int vsym, const char *vername, char *strings)
 void *__vdsosym(const char *vername, const char *name)
 {
 	size_t i;
+#if GMUSL_gcompat__musl_global_state
 	for (i=0; libc.auxv[i] != AT_SYSINFO_EHDR; i+=2)
 		if (!libc.auxv[i]) return 0;
 	if (!libc.auxv[i+1]) return 0;
 	Ehdr *eh = (void *)libc.auxv[i+1];
+#else
+        Ehdr *eh = 0;
+        {
+            unsigned long val = __getauxval(AT_SYSINFO_EHDR);
+            if (val == 0) return 0;
+            eh = (void *) val;
+        }
+#endif
 	Phdr *ph = (void *)((char *)eh + eh->e_phoff);
 	size_t *dynv=0, base=-1;
 	for (i=0; i<eh->e_phnum; i++, ph=(void *)((char *)ph+eh->e_phentsize)) {
@@ -62,7 +77,7 @@ void *__vdsosym(const char *vername, const char *name)
 	Elf_Symndx *hashtab = 0;
 	uint16_t *versym = 0;
 	Verdef *verdef = 0;
-	
+
 	for (i=0; dynv[i]; i+=2) {
 		void *p = (void *)(base + dynv[i+1]);
 		switch(dynv[i]) {
@@ -72,7 +87,7 @@ void *__vdsosym(const char *vername, const char *name)
 		case DT_VERSYM: versym = p; break;
 		case DT_VERDEF: verdef = p; break;
 		}
-	}	
+	}
 
 	if (!strings || !syms || !hashtab) return 0;
 	if (!verdef) versym = 0;
